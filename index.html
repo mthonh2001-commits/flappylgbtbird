@@ -3,38 +3,141 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Flappy Bird - Instant Smooth Controls</title>
+    <title>Flappy Bird - Admin Master</title>
     <style>
         * { box-sizing: border-box; }
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background: #111; color: white;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none;
-        }
-
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #111; color: white; font-family: 'Segoe UI', sans-serif; user-select: none; }
         #game-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
         canvas { display: block; width: 100%; height: 100%; object-fit: contain; background: #70c5ce; }
-
-        /* --- UI CHÍNH GÓC TRÁI --- */
-        .left-ui-container {
-            position: absolute; top: 20px; left: 20px;
-            display: flex; flex-direction: column; gap: 10px; z-index: 80;
-        }
+        .left-ui-container { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 80; }
         .ui-row { display: flex; gap: 10px; align-items: center; }
+        .circle-btn { width: 45px; height: 45px; background: rgba(40, 40, 40, 0.7); border: 2px solid #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s; font-size: 20px; }
+        #flag-counter { background: rgba(20, 20, 20, 0.85); border: 1px solid #00ff66; border-radius: 20px; padding: 0 15px; height: 35px; font-size: 14px; font-weight: bold; color: #00ff66; display: flex; align-items: center; gap: 6px; }
+        #settings-panel, #shop-panel, #mod-menu-box { position: absolute; background: rgba(20, 20, 20, 0.95); border: 2px solid #fff; border-radius: 10px; padding: 15px; display: none; z-index: 99; backdrop-filter: blur(5px); }
+        #secret-input { width: 100%; background: #000; border: 1px solid #555; padding: 8px; color: #00ffcc; text-align: center; border-radius: 6px; }
+        #mod-menu-toggle { display: none; position: absolute; width: 50px; height: 50px; background: #1a1a1a; border: 2px solid #00ffcc; border-radius: 50%; color: #00ffcc; font-weight: bold; cursor: move; justify-content: center; align-items: center; z-index: 100; box-shadow: 0 0 15px #00ffcc; }
+        .menu-feature { font-size: 12px; color: #ddd; padding: 8px; margin-bottom: 5px; background: rgba(255,255,255,0.03); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold; background: #444; color: #aaa; cursor: pointer; }
+        .status-badge.active { background: #00ffcc; color: #000; }
+        .speed-txt { width: 60px; background: #000; border: 1px solid #444; color: #00ffcc; padding: 2px; text-align: center; }
+    </style>
+</head>
+<body>
 
-        .circle-btn {
-            width: 45px; height: 45px;
-            background: rgba(40, 40, 40, 0.7); border: 2px solid #fff; border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; transition: all 0.2s; font-size: 20px;
+<div id="game-container">
+    <div class="left-ui-container">
+        <div class="ui-row">
+            <div id="settings-toggle" class="circle-btn">⚙️</div>
+            <div id="pause-toggle" class="circle-btn">⏸️</div>
+        </div>
+        <div class="ui-row">
+            <div id="flag-counter">🚩 <span id="flag-amount">0</span></div>
+            <div id="shop-toggle" class="circle-btn">🛒</div>
+        </div>
+        <div id="settings-panel">
+            <input type="text" id="secret-input" placeholder="Nhập mã...">
+        </div>
+    </div>
+
+    <div id="mod-menu-toggle">M</div>
+    <div id="mod-menu-box">
+        <h3 style="color:#ff007f; margin:0 0 10px; font-size: 14px; text-align:center;">MOD MENU</h3>
+        <div class="menu-feature">
+            <span>Tốc độ:</span>
+            <input type="number" id="custom-speed-val" class="speed-txt" placeholder="1-50">
+            <button id="btn-apply-speed" class="status-badge">OK</button>
+        </div>
+        <div class="menu-feature">
+            <span>Bất tử:</span>
+            <span class="status-badge" id="badge-godmode">TẮT</span>
+        </div>
+    </div>
+
+    <canvas id="canvas" width="480" height="640"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById("canvas"), ctx = canvas.getContext("2d");
+    let gamePlaying = false, gamePaused = false, hackGodmodeActive = false, flags = parseFloat(localStorage.getItem("fb_flags")) || 0;
+    let currentSpeed = 2.5, speedMultiplier = 1, pipes = [], index = 0, BASE_SPEED = 2.5, BASE_SPAWN_RATE = 100;
+
+    // Hệ thống logic game cơ bản
+    function updatePipes() {
+        if (!gamePlaying || gamePaused) return;
+        if (index % Math.max(8, Math.floor(BASE_SPAWN_RATE / (1 + (speedMultiplier - 1) * 0.5))) === 0) {
+            const topH = Math.floor(Math.random() * 300) + 50;
+            pipes.push({ x: 480, top: topH, bottom: 140, w: 70, passed: false });
         }
-        .circle-btn:hover { background: rgba(80, 80, 80, 0.9); transform: scale(1.05); }
-        #settings-toggle:hover { transform: scale(1.05) rotate(45deg); }
+        pipes.forEach(p => {
+            p.x -= currentSpeed;
+            if (!hackGodmodeActive && (80 < p.x + p.w && 120 > p.x && (280 < p.top || 280 + 32 > 640 - p.bottom))) { gamePlaying = false; }
+            if (p.x + p.w < 80 && !p.passed) { p.passed = true; flags++; localStorage.setItem("fb_flags", flags); document.getElementById("flag-amount").innerText = flags; }
+        });
+        pipes = pipes.filter(p => p.x > -p.w);
+    }
 
-        #flag-counter {
-            background: rgba(20, 20, 20, 0.85); border: 1px solid #00ff66;
-            box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+    // Xử lý mã lệnh ẩn
+    document.getElementById("secret-input").addEventListener("input", e => {
+        let val = e.target.value.trim();
+        if (val === "1908") { document.getElementById("mod-menu-toggle").style.display = "flex"; e.target.value = ""; }
+        else if (val === "admin999") { flags += 1000; localStorage.setItem("fb_flags", flags); document.getElementById("flag-amount").innerText = flags; e.target.value = ""; }
+        else if (val === "reset.") { localStorage.clear(); location.reload(); }
+    });
+
+    // Mod Menu Speed
+    document.getElementById("btn-apply-speed").addEventListener("click", () => {
+        let val = parseInt(document.getElementById("custom-speed-val").value);
+        speedMultiplier = isNaN(val) ? 1 : Math.min(50, Math.max(1, val));
+        currentSpeed = BASE_SPEED + ((speedMultiplier - 1) * 1.5);
+    });
+
+    // Mod Bất tử
+    document.getElementById("badge-godmode").addEventListener("click", (e) => {
+        hackGodmodeActive = !hackGodmodeActive;
+        e.target.innerText = hackGodmodeActive ? "BẬT" : "TẮT";
+        e.target.classList.toggle("active", hackGodmodeActive);
+    });
+
+    // Loop game
+    function loop() {
+        ctx.clearRect(0, 0, 480, 640);
+        ctx.fillStyle = "#70c5ce"; ctx.fillRect(0, 0, 480, 640);
+        if (gamePlaying) {
+            updatePipes();
+            pipes.forEach(p => {
+                ctx.fillStyle = "#73bf2e";
+                ctx.fillRect(p.x, 0, p.w, p.top);
+                ctx.fillRect(p.x, 640 - p.bottom, p.w, p.bottom);
+            });
+            ctx.fillStyle = "yellow"; ctx.fillRect(80, 280, 40, 32);
+            index++;
+        }
+        requestAnimationFrame(loop);
+    }
+    canvas.addEventListener("mousedown", () => gamePlaying = true);
+    loop();
+
+    // UI Toggles
+    document.getElementById("settings-toggle").addEventListener("click", () => {
+        let s = document.getElementById("settings-panel");
+        s.style.display = s.style.display === "none" ? "block" : "none";
+    });
+    
+    // Drag Menu
+    let menu = document.getElementById("mod-menu-toggle");
+    let box = document.getElementById("mod-menu-box");
+    menu.addEventListener("mousedown", (e) => {
+        let shiftX = e.clientX - menu.getBoundingClientRect().left;
+        let shiftY = e.clientY - menu.getBoundingClientRect().top;
+        function moveAt(pageX, pageY) { menu.style.left = pageX - shiftX + 'px'; menu.style.top = pageY - shiftY + 'px'; box.style.left = (pageX - shiftX - 190) + 'px'; box.style.top = (pageY - shiftY + 60) + 'px'; }
+        function onMouseMove(e) { moveAt(e.pageX, e.pageY); }
+        document.addEventListener('mousemove', onMouseMove);
+        document.onmouseup = () => { document.removeEventListener('mousemove', onMouseMove); };
+        menu.onclick = () => { box.style.display = box.style.display === "block" ? "none" : "block"; };
+    });
+</script>
+</body>
+</html>            box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
             border-radius: 20px; padding: 0 15px; height: 35px;
             font-size: 14px; font-weight: bold; color: #00ff66;
             display: flex; align-items: center; gap: 6px; pointer-events: none;
