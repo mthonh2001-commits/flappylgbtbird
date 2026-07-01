@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Bird - Instant Smooth Controls</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            background: #111; color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+
+        #game-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; width: 100%; height: 100%; object-fit: contain; background: #70c5ce; }
+
+        /* --- UI CHÍNH GÓC TRÁI --- */
+        .left-ui-container {
+            position: absolute; top: 20px; left: 20px;
+            display: flex; flex-direction: column; gap: 10px; z-index: 80;
+        }
+        .ui-row { display: flex; gap: 10px; align-items: center; }
+
+        .circle-btn {
+            width: 45px; height: 45px;
+            background: rgba(40, 40, 40, 0.7); border: 2px solid #fff; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.2s; font-size: 20px;
+        }
+        .circle-btn:hover { background: rgba(80, 80, 80, 0.9); transform: scale(1.05); }
+        #settings-toggle:hover { transform: scale(1.05) rotate(45deg); }
+
+        #flag-counter {
+            background: rgba(20, 20, 20, 0.85); border: 1px solid #00ff66;
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+            border-radius: 20px; padding: 0 15px; height: 35px;
+            font-size: 14px; font-weight: bold; color: #00ff66;
+            display: flex; align-items: center; gap: 6px; pointer-events: none;
+        }
+
+        /* BẢNG CÀI ĐẶT */
+        #settings-panel {
+            display: none; width: 220px;
+            background: rgba(25, 25, 25, 0.95); border: 2px solid #fff; border-radius: 10px;
+            padding: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+        }
+        #settings-panel label { font-size: 11px; color: #ccc; text-transform: uppercase; display: block; text-align: center; margin-bottom: 8px; }
+        #secret-input { width: 100%; background: #000; border: 1px solid #555; padding: 8px; color: #00ffcc; text-align: center; border-radius: 6px; outline: none; }
+
+        /* --- CỬA HÀNG (SHOP) --- */
+        #shop-panel {
+            display: none; width: 310px; max-height: 80vh; 
+            background: rgba(25, 25, 25, 0.98); border: 2px solid #ffcc00; border-radius: 12px;
+            padding: 15px; box-shadow: 0 0 20px rgba(255, 204, 0, 0.4); backdrop-filter: blur(10px);
+        }
+        #shop-panel h2 { margin: 0 0 12px 0; color: #ffcc00; font-size: 18px; text-align: center; text-transform: uppercase; }
+        
+        .shop-tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 2px solid #444; padding-bottom: 8px; }
+        .tab-btn {
+            flex: 1; padding: 6px; font-size: 12px; font-weight: bold; background: #333; color: #aaa;
+            border: 1px solid #555; border-radius: 4px; cursor: pointer; transition: all 0.2s;
+        }
+        .tab-btn.active { background: #ffcc00; color: #000; border-color: #ffcc00; }
+
+        #shop-items-container { max-height: 45vh; overflow-y: auto; padding-right: 2px; }
+        .shop-item {
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(25, 25, 25, 0.05); border-radius: 8px;
+            padding: 10px; margin-bottom: 8px;
+        }
+        .item-info { display: flex; align-items: center; gap: 10px; }
+        .item-preview { width: 34px; height: 28px; border-radius: 4px; border: 1px solid #555; display: flex; justify-content: center; align-items: center; font-size: 16px; }
+        .item-name { font-size: 13px; font-weight: bold; }
+        .item-name.admin-text { color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5); }
+        
+        .shop-btn { padding: 6px 10px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; cursor: pointer; text-transform: uppercase; }
+        .btn-buy { background: #ffcc00; color: #000; }
+        .btn-buy:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .btn-equipped { background: #00ff66; color: #000; cursor: default; }
+        .btn-use { background: #fff; color: #000; }
+
+        /* --- UI KHÁC --- */
+        #score-board {
+            position: absolute; top: 30px; left: 50%; transform: translateX(-50%);
+            font-size: 55px; font-weight: 900; text-shadow: 3px 3px 0 #000; pointer-events: none;
+        }
+
+        #mod-menu-toggle {
+            display: none; position: absolute; width: 50px; height: 50px;
+            background: #1a1a1a; border: 2px solid #00ffcc; border-radius: 50%;
+            color: #00ffcc; font-weight: bold; cursor: move;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.6);
+            justify-content: center; align-items: center; z-index: 100;
+        }
+
+        #mod-menu-box {
+            display: none; position: absolute; width: 240px;
+            background: rgba(20, 20, 20, 0.95); border: 2px solid #ff007f;
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.5);
+            border-radius: 10px; padding: 15px; z-index: 99; backdrop-filter: blur(10px);
+        }
+        #mod-menu-box h3 { margin: 0 0 12px 0; color: #ff007f; font-size: 14px; text-align: center; text-transform: uppercase; border-bottom: 1px dashed #333; padding-bottom: 5px; }
+        
+        .menu-feature { font-size: 12px; color: #ddd; padding: 8px; margin-bottom: 5px; background: rgba(255,255,255,0.03); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { font-size: 10px; padding: 2px 5px; border-radius: 3px; font-weight: bold; background: #444; color: #aaa; cursor: pointer; }
+        .status-badge.active { background: #00ffcc; color: #000; box-shadow: 0 0 8px #00ffcc; }
+
+        .speed-input-container { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
+        .speed-txt { flex: 1; background: #000; border: 1px solid #444; color: #00ffcc; padding: 4px; text-align: center; border-radius: 4px; font-size: 11px; outline: none; }
+        .speed-btn { background: #ff007f; color: #fff; border: none; padding: 4px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+
+        #shop-items-container::-webkit-scrollbar { width: 4px; }
+        #shop-items-container::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="left-ui-container">
+        <div class="ui-row">
+            <div id="settings-toggle" class="circle-btn">⚙️</div>
+            <div id="pause-toggle" class="circle-btn">⏸️</div>
+        </div>
+        <div class="ui-row">
+            <div id="flag-counter">🚩 <span id="flag-amount">0</span></div>
+            <div id="shop-toggle" class="circle-btn">🛒</div>
+        </div>
+
+        <div id="settings-panel">
+            <label for="secret-input">🔑 Nhập mã bí mật</label>
+            <input type="text" id="secret-input" placeholder="Code..." autocomplete="off">
+        </div>
+
+        <div id="shop-panel">
+            <h2>✨ Shop Tổng Hợp</h2>
+            <div class="shop-tabs">
+                <button class="tab-btn active" id="tab-skins" onclick="switchTab('skins')">👕 Nhóm Skin</button>
+                <button class="tab-btn" id="tab-hats" onclick="switchTab('hats')">🤠 Nhóm Mũ</button>
+            </div>
+            <div id="shop-items-container"></div>
+        </div>
+    </div>
+
+    <div id="mod-menu-toggle">M</div>
+    <div id="mod-menu-box">
+        <h3>🏳️‍🌈 LGBT Mod Menu</h3>
+        <div class="menu-feature" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+            <div style="display: flex; width: 100%; justify-content: space-between; align-items: center;">
+                <span>⚡ Tốc độ (Tùy chỉnh):</span>
+                <span class="status-badge" id="badge-speed">GỐC (1x)</span>
+            </div>
+            <div class="speed-input-container">
+                <input type="number" id="custom-speed-val" class="speed-txt" placeholder="Nhập số... (Ví dụ: 5)" min="1" max="5000">
+                <button id="btn-apply-speed" class="speed-btn">ÁP DỤNG</button>
+            </div>
+        </div>
+        <div class="menu-feature">
+            <span>🛡️ Chế độ Bất Tử</span>
+            <span class="status-badge" id="badge-godmode">TẮT</span>
+        </div>
+    </div>
+
+    <div id="score-board">0</div>
+    <canvas id="canvas" width="480" height="640"></canvas>
+</div>
+
+<script>
+/* ====================================================
+   HÀM ĐỊNH DẠNG TIỀN TỆ LỚN
+==================================================== */
+function formatFlags(num) {
+    if (num < 1000) return num.toString();
+    const units = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc"];
+    const i = Math.floor(Math.log10(num) / 3);
+    if (i >= units.length) return num.toExponential(2);
+    const formatted = (num / Math.pow(10, i * 3)).toFixed(1);
+    return formatted.replace(/\.0$/, "") + units[i];
+}
+
+/* ====================================================
+   CẤU HÌNH DATA VẬT PHẨM
+==================================================== */
+const skins = {
+    default: { name: "Mặc định", body: "#f7d308", beak: "#f15a24", wing: "#debe07", price: 0 },
+    classic: { name: "Huyền thoại", body: "#555", beak: "#cc0000", wing: "#888", price: 0 },
+    neon:    { name: "Cyberpunk", body: "#00ffcc", beak: "#ff00ff", wing: "#00b399", price: 20 },
+    gold:    { name: "Hoàng kim", body: "#ffcc00", beak: "#fff", wing: "#ff9900", price: 50 },
+    rainbow: { name: "LGBT Pride", body: "rainbow", beak: "#fff", wing: "#fff", price: 100 },
+    admin:   { name: "[Admin Skin] 👑", body: "#f5f6fa", beak: "#f15a24", wing: "#ffffff", price: 100000000000000000 }
+};
+
+const hats = {
+    none:    { name: "Không mũ", icon: "❌", price: 0 },
+    cowboy:  { name: "Mũ Cao bồi", icon: "🤠", price: 15 },
+    witch:   { name: "Mũ Phù thủy", icon: "🧙", price: 30 },
+    crown:   { name: "Vương miện", icon: "👑", price: 60 },
+    santa:   { name: "Mũ Noel", icon: "🧑‍🎄", price: 40 },
+    tophat:  { name: "Mũ Ảo thuật", icon: "🎩", price: 75 },
+    adminHat:{ name: "[Admin Hat] 😎", icon: "👑🕶️", price: 100000000000000000 }
+};
+
+let ownedSkins = JSON.parse(localStorage.getItem("fb_owned_skins")) || ["default"];
+let equippedSkin = localStorage.getItem("fb_equipped_skin") || "default";
+let ownedHats = JSON.parse(localStorage.getItem("fb_owned_hats")) || ["none"];
+let equippedHat = localStorage.getItem("fb_equipped_hat") || "none";
+let currentShopTab = "skins";
+
+/* ====================================================
+   KHỞI TẠO BIẾN GAME
+==================================================== */
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const scoreBoard = document.getElementById("score-board");
+const secretInput = document.getElementById("secret-input");
+const customSpeedVal = document.getElementById("custom-speed-val");
+const btnApplySpeed = document.getElementById("btn-apply-speed");
+const flagAmountDisplay = document.getElementById("flag-amount");
+
+const settingsToggle = document.getElementById("settings-toggle");
+const settingsPanel = document.getElementById("settings-panel");
+const pauseToggle = document.getElementById("pause-toggle");
+const shopToggle = document.getElementById("shop-toggle");
+const shopPanel = document.getElementById("shop-panel");
+const shopItemsContainer = document.getElementById("shop-items-container");
+
+const menuToggle = document.getElementById("mod-menu-toggle");
+const menuBox = document.getElementById("mod-menu-box");
+const badgeSpeed = document.getElementById("badge-speed");
+const badgeGodmode = document.getElementById("badge-godmode");
+
+let score = 0, highScore = parseInt(localStorage.getItem("fb_highscore")) || 0, flags = parseFloat(localStorage.getItem("fb_flags")) || 0;
+let gamePlaying = false, gamePaused = false, hackGodmodeActive = false, index = 0, scoreForNextFlag = 0;
+
+const GRAVITY = 0.3, JUMP = -6.5, BASE_SPEED = 2.5, BASE_SPAWN_RATE = 100, PIPE_GAP = 140;
+let currentSpeed = BASE_SPEED, currentSpawnRate = BASE_SPAWN_RATE, speedMultiplier = 1;
+
+flagAmountDisplay.innerText = formatFlags(flags);
+
+/* ====================================================
+   SHOP UI LOGIC
+==================================================== */
+function switchTab(tabName) {
+    currentShopTab = tabName;
+    document.getElementById("tab-skins").classList.toggle("active", tabName === "skins");
+    document.getElementById("tab-hats").classList.toggle("active", tabName === "hats");
+    renderShop();
+}
+
+function renderShop() {
+    shopItemsContainer.innerHTML = '';
+    if (currentShopTab === "skins") {
+        Object.keys(skins).forEach(key => {
+            const skin = skins[key];
+            const isOwned = ownedSkins.includes(key);
+            const isEquipped = equippedSkin === key;
+            const canAfford = flags >= skin.price;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'shop-item';
+            let bgStyle = skin.body === 'rainbow' ? 'linear-gradient(to bottom, red, orange, yellow, green, blue, purple)' : skin.body;
+            let adminShadow = key === 'admin' ? 'box-shadow: 0 0 10px #fff;' : '';
+
+            itemDiv.innerHTML = `
+                <div class="item-info">
+                    <div class="item-preview" style="background: ${bgStyle}; ${adminShadow}"></div>
+                    <div>
+                        <div class="item-name ${key === 'admin' ? 'admin-text' : ''}">${skin.name}</div>
+                        <div style="font-size: 11px; color: ${isOwned ? '#aaa' : '#00ff66'}">${isOwned ? 'Đã sở hữu' : `🚩 ${formatFlags(skin.price)}`}</div>
+                    </div>
+                </div>
+                ${isEquipped ? `<button class="shop-btn btn-equipped" disabled>Đang dùng</button>` : 
+                  isOwned ? `<button class="shop-btn btn-use" onclick="equipItem('skins', '${key}')">Trang bị</button>` : 
+                  `<button class="shop-btn btn-buy" ${canAfford ? '' : 'disabled'} onclick="buyItem('skins', '${key}')">Mua</button>`}
+            `;
+            shopItemsContainer.appendChild(itemDiv);
+        });
+    } else {
+        Object.keys(hats).forEach(key => {
+            const hat = hats[key];
+            const isOwned = ownedHats.includes(key);
+            const isEquipped = equippedHat === key;
+            const canAfford = flags >= hat.price;
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'shop-item';
+
+            itemDiv.innerHTML = `
+                <div class="item-info">
+                    <div class="item-preview" style="background:#444;">${key === 'adminHat' ? '👑' : hat.icon}</div>
+                    <div>
+                        <div class="item-name ${key === 'adminHat' ? 'admin-text' : ''}">${hat.name}</div>
+                        <div style="font-size: 11px; color: ${isOwned ? '#aaa' : '#00ff66'}">${isOwned ? 'Đã sở hữu' : `🚩 ${formatFlags(hat.price)}`}</div>
+                    </div>
+                </div>
+                ${isEquipped ? `<button class="shop-btn btn-equipped" disabled>Đang đội</button>` : 
+                  isOwned ? `<button class="shop-btn btn-use" onclick="equipItem('hats', '${key}')">Đội mũ</button>` : 
+                  `<button class="shop-btn btn-buy" ${canAfford ? '' : 'disabled'} onclick="buyItem('hats', '${key}')">Mua</button>`}
+            `;
+            shopItemsContainer.appendChild(itemDiv);
+        });
+    }
+}
+
+function buyItem(type, key) {
+    if (type === 'skins') {
+        const price = skins[key].price;
+        if (flags >= price && !ownedSkins.includes(key)) {
+            flags -= price; ownedSkins.push(key);
+            localStorage.setItem("fb_flags", flags);
+            localStorage.setItem("fb_owned_skins", JSON.stringify(ownedSkins));
+        }
+    } else {
+        const price = hats[key].price;
+        if (flags >= price && !ownedHats.includes(key)) {
+            flags -= price; ownedHats.push(key);
+            localStorage.setItem("fb_flags", flags);
+            localStorage.setItem("fb_owned_hats", JSON.stringify(ownedHats));
+        }
+    }
+    flagAmountDisplay.innerText = formatFlags(flags);
+    renderShop();
+}
+
+function equipItem(type, key) {
+    if (type === 'skins') { equippedSkin = key; localStorage.setItem("fb_equipped_skin", key); }
+    else { equippedHat = key; localStorage.setItem("fb_equipped_hat", key); }
+    renderShop();
+}
+renderShop();
+
+/* ====================================================
+   BIRD GRAPHICS
+==================================================== */
+const bird = {
+    x: 80, y: 280, w: 40, h: 32, velocity: 0,
+    draw() {
+        ctx.save();
+        let currentSkinData = skins[equippedSkin] || skins.default;
+
+        if (equippedSkin === 'admin') {
+            ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 18;
+        } else if (hackGodmodeActive) {
+            ctx.shadowColor = "#ff007f"; ctx.shadowBlur = 15;
+        }
+
+        if (equippedSkin === 'rainbow') {
+            let grad = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.h);
+            grad.addColorStop(0, "red"); grad.addColorStop(0.5, "yellow"); grad.addColorStop(1, "purple");
+            ctx.fillStyle = grad;
+        } else {
+            ctx.fillStyle = currentSkinData.body;
+        }
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#fff"; ctx.fillRect(this.x + 24, this.y + 4, 10, 10);
+        ctx.fillStyle = "#000"; ctx.fillRect(this.x + 30, this.y + 6, 4, 4);
+        ctx.fillStyle = currentSkinData.beak; ctx.fillRect(this.x + 34, this.y + 14, 10, 8);
+
+        ctx.fillStyle = currentSkinData.wing;
+        ctx.fillRect(this.x + 4, this.y + 10, 14, 12);
+
+        if (equippedSkin === 'admin') {
+            ctx.save();
+            ctx.strokeStyle = "#ffeaa7"; ctx.lineWidth = 3; ctx.shadowColor = "#ffd32a"; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.ellipse(this.x + 18, this.y - 6, 12, 3, 0, 0, Math.PI * 2); ctx.stroke();
+            ctx.restore();
+        }
+
+        if (equippedHat === 'cowboy') {
+            ctx.fillStyle = "#8a5a36"; ctx.fillRect(this.x - 4, this.y - 5, 48, 5);
+            ctx.fillStyle = "#5c3a21"; ctx.fillRect(this.x + 6, this.y - 15, 28, 10);
+        } else if (equippedHat === 'witch') {
+            ctx.fillStyle = "#222"; ctx.fillRect(this.x - 2, this.y - 4, 44, 4);
+            ctx.fillStyle = "#4a154b"; ctx.beginPath(); ctx.moveTo(this.x+6, this.y-4); ctx.lineTo(this.x+34, this.y-4); ctx.lineTo(this.x+20, this.y-18); ctx.fill();
+        } else if (equippedHat === 'crown') {
+            ctx.fillStyle = "#ffcc00"; ctx.beginPath(); ctx.moveTo(this.x+4, this.y); ctx.lineTo(this.x+4, this.y-12); ctx.lineTo(this.x+12, this.y-5); ctx.lineTo(this.x+20, this.y-14); ctx.lineTo(this.x+28, this.y-5); ctx.lineTo(this.x+36, this.y-12); ctx.lineTo(this.x+36, this.y); ctx.fill();
+        } else if (equippedHat === 'santa') {
+            ctx.fillStyle = "#d63031"; ctx.beginPath(); ctx.moveTo(this.x+6, this.y-2); ctx.lineTo(this.x+34, this.y-2); ctx.lineTo(this.x+12, this.y-15); ctx.fill();
+            ctx.fillStyle = "#fff"; ctx.fillRect(this.x+4, this.y-4, 32, 4);
+            ctx.beginPath(); ctx.arc(this.x+12, this.y-15, 3, 0, Math.PI*2); ctx.fill();
+        } else if (equippedHat === 'tophat') {
+            ctx.fillStyle = "#000"; ctx.fillRect(this.x, this.y - 4, 40, 4); ctx.fillRect(this.x + 6, this.y - 20, 28, 16);
+            ctx.fillStyle = "#ff0000"; ctx.fillRect(this.x + 6, this.y - 7, 28, 3);
+        } else if (equippedHat === 'adminHat') {
+            ctx.fillStyle = "#ffcc00"; ctx.beginPath(); 
+            ctx.moveTo(this.x+6, this.y); ctx.lineTo(this.x+6, this.y-10); ctx.lineTo(this.x+13, this.y-4); ctx.lineTo(this.x+20, this.y-12); ctx.lineTo(this.x+27, this.y-4); ctx.lineTo(this.x+34, this.y-10); ctx.lineTo(this.x+34, this.y); ctx.fill();
+            ctx.fillStyle = "#111"; ctx.fillRect(this.x + 22, this.y + 5, 20, 5);
+            ctx.strokeStyle = "#eee"; ctx.lineWidth = 1; ctx.strokeRect(this.x + 22, this.y + 5, 20, 5);
+        }
+
+        ctx.restore();
+    },
+    update() {
+        if (!gamePlaying || gamePaused) return;
+        this.velocity += GRAVITY; this.y += this.velocity;
+        if (this.y + this.h > canvas.height) {
+            this.y = canvas.height - this.h;
+            if (hackGodmodeActive) { this.y = canvas.height / 2; this.velocity = 0; } else { gameOver(); }
+        }
+        if (this.y < 0) { this.y = 0; this.velocity = 0; }
+    },
+    jump() { this.velocity = JUMP; }
+};
+
+/* ====================================================
+   ENGINE LOGIC GAMEPLAY
+==================================================== */
+let pipes = [];
+function createPipe() {
+    const minH = 60, maxH = canvas.height - PIPE_GAP - minH;
+    const topH = Math.floor(Math.random() * (maxH - minH + 1) + minH);
+    pipes.push({ x: canvas.width, top: topH, bottom: canvas.height - topH - PIPE_GAP, w: 70, passed: false });
+}
+function drawPipes() {
+    pipes.forEach(p => {
+        ctx.fillStyle = "#73bf2e"; ctx.strokeStyle = "#2d4f12"; ctx.lineWidth = 3;
+        ctx.fillRect(p.x, 0, p.w, p.top); ctx.strokeRect(p.x, -5, p.w, p.top + 5);
+        ctx.fillStyle = "#82d434"; ctx.fillRect(p.x - 4, p.top - 24, p.w + 8, 24); ctx.strokeRect(p.x - 4, p.top - 24, p.w + 8, 24);
+        ctx.fillStyle = "#73bf2e"; ctx.fillRect(p.x, canvas.height - p.bottom, p.w, p.bottom); ctx.strokeRect(p.x, canvas.height - p.bottom, p.w, p.bottom + 5);
+        ctx.fillStyle = "#82d434"; ctx.fillRect(p.x - 4, canvas.height - p.bottom, p.w + 8, 24); ctx.strokeRect(p.x - 4, canvas.height - p.bottom, p.w + 8, 24);
+    });
+}
+function addScore(amount) {
+    score += amount; scoreForNextFlag += amount;
+    if (scoreForNextFlag >= 100) {
+        let gained = Math.floor(scoreForNextFlag / 100);
+        flags += gained; scoreForNextFlag %= 100;
+        flagAmountDisplay.innerText = formatFlags(flags);
+        localStorage.setItem("fb_flags", flags);
+        renderShop();
+    }
+    scoreBoard.innerText = Math.floor(score);
+}
+function updatePipes() {
+    if (!gamePlaying || gamePaused) return;
+    if (index % currentSpawnRate === 0) createPipe();
+    if (speedMultiplier > 1) addScore(speedMultiplier * 0.15);
+
+    pipes.forEach(p => {
+        p.x -= currentSpeed;
+        if (!p.passed && p.x + p.w < bird.x) { if (speedMultiplier === 1) addScore(1); p.passed = true; }
+        if (!hackGodmodeActive && bird.x < p.x + p.w && bird.x + bird.w > p.x && (bird.y < p.top || bird.y + bird.h > canvas.height - p.bottom)) { gameOver(); }
+    });
+    pipes = pipes.filter(p => p.x + p.w > 0);
+}
+
+/* ====================================================
+   SYSTEM CODES & ACTIONS (KHÔNG CÒN HỘP THOẠI TRANG WEB)
+==================================================== */
+function gameOver() {
+    gamePlaying = false;
+    if (Math.floor(score) > highScore) { highScore = Math.floor(score); localStorage.setItem("fb_highscore", highScore); }
+}
+function resetGame() {
+    bird.y = 280; bird.velocity = 0; pipes = []; score = 0; scoreForNextFlag = 0;
+    scoreBoard.innerText = 0; index = 0; gamePlaying = true; gamePaused = false;
+    pauseToggle.innerText = "⏸️"; hideAllPanels();
+}
+function drawUI() {
+    if (!gamePlaying && pipes.length === 0) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 22px Arial"; ctx.textAlign = "center"; ctx.fillText("BẤM CÁCH HOẶC CHẠM ĐỂ CHƠI", canvas.width / 2, canvas.height / 2);
+    } else if (gamePaused) {
+        ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 30px Arial"; ctx.textAlign = "center"; ctx.fillText("TẠM DỪNG", canvas.width / 2, canvas.height / 2);
+    } else if (!gamePlaying) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ff4747"; ctx.font = "bold 35px Arial"; ctx.textAlign = "center"; ctx.fillText("THUA CUỘC", canvas.width / 2, canvas.height / 2 - 50);
+        ctx.fillStyle = "#fff"; ctx.font = "18px Arial"; ctx.fillText(`Điểm: ${Math.floor(score)}`, canvas.width / 2, canvas.height / 2);
+        ctx.fillStyle = "#ffcc00"; ctx.fillText(`Kỷ lục: ${highScore}`, canvas.width / 2, canvas.height / 2 + 30);
+    }
+}
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#70c5ce"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    updatePipes(); drawPipes(); bird.update(); bird.draw(); drawUI();
+    if (gamePlaying && !gamePaused) index++;
+    requestAnimationFrame(loop);
+}
+
+const inputJump = (e) => {
+    if (document.activeElement === secretInput || document.activeElement === customSpeedVal || 
+        e.target.closest('#settings-panel') || e.target.closest('#shop-panel') || 
+        e.target.closest('.circle-btn') || e.target.closest('#mod-menu-toggle') || e.target.closest('#mod-menu-box')) return;
+    if (gamePaused) return; if (!gamePlaying) resetGame(); else bird.jump();
+};
+window.addEventListener("keydown", e => { if(e.code === "Space") inputJump(e); });
+canvas.addEventListener("mousedown", inputJump); canvas.addEventListener("touchstart", inputJump);
+
+function hideAllPanels() { settingsPanel.style.display = "none"; shopPanel.style.display = "none"; menuBox.style.display = "none"; }
+pauseToggle.addEventListener("click", () => { if (!gamePlaying) return; hideAllPanels(); gamePaused = !gamePaused; pauseToggle.innerText = gamePaused ? "▶️" : "⏸️"; });
+settingsToggle.addEventListener("click", () => { const vis = settingsPanel.style.display === "block"; hideAllPanels(); if (!vis) settingsPanel.style.display = "block"; });
+
+// BẮT SỰ KIỆN NHẬP MÃ (XỬ LÝ LUÔN LÀM MƯỢT CHO CẢ MOBILE VÀ PC)
+secretInput.addEventListener("input", e => {
+    let val = e.target.value.trim();
+    if (val === "1908") { 
+        hideAllPanels(); menuToggle.style.display = "flex"; updateMenuBoxPos(); secretInput.value = ""; 
+          }else if (val === "0106") {
+        hideAllPanels(); menuToggle.style.display = "flex"; updateMenuBoxPos(); secretInput.value = "";
+    } else if (val === "admin999") { 
+        // CHẠY TRỰC TIẾP, KHÔNG HỎI TRANG WEB
+        flags += 1000000000000000000000;
+        localStorage.setItem("fb_flags", flags);
+        flagAmountDisplay.innerText = formatFlags(flags);
+        renderShop(); secretInput.value = ""; hideAllPanels();
+    } else if (val === "reset.") { 
+        // CHẠY TRỰC TIẾP, KHÔNG HỎI TRANG WEB
+        localStorage.clear();
+        flags = 0; score = 0; highScore = 0; scoreForNextFlag = 0;
+        ownedSkins = ["default"]; equippedSkin = "default";
+        ownedHats = ["none"]; equippedHat = "none";
+        speedMultiplier = 1; currentSpeed = BASE_SPEED; currentSpawnRate = BASE_SPAWN_RATE;
+        badgeSpeed.innerText = "GỐC (1x)"; badgeSpeed.classList.remove("active");
+        flagAmountDisplay.innerText = formatFlags(flags); scoreBoard.innerText = 0;
+        menuToggle.style.display = "none";
+        renderShop(); secretInput.value = ""; hideAllPanels();
+        if (gamePlaying) resetGame();
+    }
+});
+
+shopToggle.addEventListener("click", () => { const vis = shopPanel.style.display === "block"; hideAllPanels(); if (!vis) { renderShop(); shopPanel.style.display = "block"; } });
+
+/* MOD MENU ACTION */
+btnApplySpeed.addEventListener("click", () => {
+    let speedVal = parseInt(customSpeedVal.value);
+    if (isNaN(speedVal) || speedVal <= 1) {
+        speedMultiplier = 1; currentSpeed = BASE_SPEED; currentSpawnRate = BASE_SPAWN_RATE;
+        badgeSpeed.innerText = "GỐC (1x)"; badgeSpeed.classList.remove("active");
+    } else {
+        speedMultiplier = speedVal;
+        currentSpeed = BASE_SPEED * (speedMultiplier * 0.5);
+        currentSpawnRate = Math.max(8, Math.floor(BASE_SPAWN_RATE / (speedMultiplier * 0.4)));
+        badgeSpeed.innerText = speedMultiplier + "x"; badgeSpeed.classList.add("active");
+    }
+    customSpeedVal.value = "";
+});
+
+customSpeedVal.addEventListener("keydown", (e) => { e.stopPropagation(); });
+
+const featureGodmode = document.getElementById("badge-godmode").parentElement;
+featureGodmode.addEventListener("click", () => { 
+    hackGodmodeActive = !hackGodmodeActive; 
+    badgeGodmode.innerText = hackGodmodeActive ? "BẬT" : "TẮT"; 
+    badgeGodmode.classList.toggle("active", hackGodmodeActive); 
+});
+
+/* MOD MENU DRAG */
+let isDrag = false, sX, sY, cL = window.innerWidth - 70, cT = 20;
+menuToggle.style.left = cL+"px"; menuToggle.style.top = cT+"px";
+function updateMenuBoxPos() { menuBox.style.left = (cL - 190)+"px"; menuBox.style.top = (cT + 60)+"px"; }
+const dragStart = e => { isDrag = true; let cx = e.clientX || e.touches[0].clientX, cy = e.clientY || e.touches[0].clientY; sX = cx - cL; sY = cy - cT; };
+const dragMove = e => { if (!isDrag) return; let cx = e.clientX || e.touches[0].clientX, cy = e.clientY || e.touches[0].clientY; cL = Math.max(0, Math.min(window.innerWidth - 50, cx - sX)); cT = Math.max(0, Math.min(window.innerHeight - 50, cy - sY)); menuToggle.style.left = cL+"px"; menuToggle.style.top = cT+"px"; updateMenuBoxPos(); };
+menuToggle.addEventListener("mousedown", dragStart); window.addEventListener("mousemove", dragMove); window.addEventListener("mouseup", () => isDrag = false);
+menuToggle.addEventListener("touchstart", dragStart, {passive: true}); window.addEventListener("touchmove", dragMove, {passive: true}); window.addEventListener("touchend", () => isDrag = false);
+let clk; menuToggle.addEventListener("mousedown", () => clk = Date.now()); menuToggle.addEventListener("mouseup", () => { if (Date.now() - clk < 200) { const vis = menuBox.style.display === "block"; hideAllPanels(); if(!vis){ updateMenuBoxPos(); menuBox.style.display="block";}}});
+
+loop();
+</script>
+</body>
+</html>
